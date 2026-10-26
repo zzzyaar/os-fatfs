@@ -169,7 +169,7 @@ public class FileSystem {
             throw new IllegalArgumentException("用法: create <绝对路径文件名> <属性>");
         }
         String path = parts[0];
-        int attr = parseByte(parts[1], "属性");
+        int attr = parseFileAttribute(parts[1], "属性");
         if ((attr & DirEntry.ATTR_READONLY) != 0) {
             throw new IllegalArgumentException("只读文件不能建立");
         }
@@ -463,7 +463,7 @@ public class FileSystem {
             throw new IllegalArgumentException("用法: change <绝对路径文件名> <新属性>");
         }
         String path = parts[0];
-        int attr = parseByte(parts[1], "新属性");
+        int attr = parseFileAttribute(parts[1], "新属性");
 
         Lookup l = lookup(path);
         if (!l.ok) {
@@ -820,6 +820,15 @@ public class FileSystem {
                 throw new IllegalArgumentException("名称只能使用字母、数字及除 $ . / 以外的字符");
             }
         }
+    }
+
+    private int parseFileAttribute(String s, String what) {
+        int attr = parseByte(s, what);
+        int allowed = DirEntry.ATTR_READONLY | DirEntry.ATTR_SYSTEM | DirEntry.ATTR_NORMAL;
+        if ((attr & ~allowed) != 0) {
+            throw new IllegalArgumentException("文件属性只能包含只读(1)、系统(2)、普通文件(4)及其组合，不能包含目录位或保留位");
+        }
+        return attr;
     }
 
     private int parseByte(String s, String what) {
