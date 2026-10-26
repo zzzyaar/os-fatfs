@@ -88,6 +88,9 @@ public class FileSystem {
     /** 建立目录：md /a/b */
     private String md(String arg) throws IOException {
         String[] segs = splitPath(arg);
+        if (segs.length == 0) {
+            throw new IllegalArgumentException("根目录已存在，不能重复建立");
+        }
         String name = segs[segs.length - 1];
         parseDirName(name);
 
