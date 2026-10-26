@@ -23,6 +23,7 @@ public class OFTLE {
     public int flag;           // 操作类型：0 读，1 写
     public int readDnum;       // 读指针：盘块号
     public int readBnum;       // 读指针：块内字节号
+    byte[] readPendingBytes = new byte[0]; // 跨 read 命令保留尚未读完整的 UTF-8 字符字节
     public int writeDnum;      // 写指针：盘块号
     public int writeBnum;      // 写指针：块内字节号
 

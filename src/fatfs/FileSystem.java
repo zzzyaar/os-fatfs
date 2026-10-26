@@ -1,6 +1,10 @@
 package fatfs;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CoderResult;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -264,7 +268,8 @@ public class FileSystem {
             throw new IllegalArgumentException("文件以写方式打开，不能读");
         }
 
-        StringBuilder sb = new StringBuilder();
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        bytes.write(oftle.readPendingBytes, 0, oftle.readPendingBytes.length);
         boolean eofHit = false;
         for (int n = 0; n < len; n++) {
             byte[] data = disk.readBlock(oftle.readDnum);
@@ -272,7 +277,7 @@ public class FileSystem {
                 eofHit = true;
                 break;
             }
-            sb.append((char) (data[oftle.readBnum] & 0xFF));
+            bytes.write(data[oftle.readBnum] & 0xFF);
             oftle.readBnum++;
             if (oftle.readBnum >= Disk.BLOCK_SIZE) {
                 int next = disk.nextBlock(oftle.readDnum);
@@ -283,7 +288,16 @@ public class FileSystem {
                 oftle.readBnum = 0;
             }
         }
-        return "读出内容: " + sb + (eofHit ? "\n（已遇到文件结束符 #）" : "");
+        ByteBuffer encoded = ByteBuffer.wrap(bytes.toByteArray());
+        CharBuffer decoded = CharBuffer.allocate(encoded.remaining());
+        CoderResult result = StandardCharsets.UTF_8.newDecoder().decode(encoded, decoded, eofHit);
+        if (result.isError()) {
+            throw new IllegalArgumentException("文件内容不是有效的 UTF-8 文本");
+        }
+        oftle.readPendingBytes = new byte[encoded.remaining()];
+        encoded.get(oftle.readPendingBytes);
+        decoded.flip();
+        return "读出内容: " + decoded + (eofHit ? "\n（已遇到文件结束符 #）" : "");
     }
 
     /** 写文件：write /a.txt hello（写入缓冲中的内容） */
@@ -311,7 +325,7 @@ public class FileSystem {
             throw new IllegalArgumentException("文件不是写方式打开，不能写");
         }
 
-        byte[] bytes = content.getBytes(StandardCharsets.ISO_8859_1);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         for (int i = 0; i < bytes.length; i++) {
             // 当前块写满时，仅当还有下一字节要写才推进/申请下一块
             if (oftle.writeBnum >= Disk.BLOCK_SIZE) {
@@ -424,19 +438,19 @@ public class FileSystem {
             throw new IllegalArgumentException("文件已打开，不能显示内容");
         }
 
-        StringBuilder sb = new StringBuilder();
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         int dnum = l.entry.startBlock();
         while (dnum != -1) {
             byte[] data = disk.readBlock(dnum);
             for (byte b : data) {
                 if (b == EOF_CHAR) {
-                    return "文件内容: " + sb;
+                    return "文件内容: " + new String(bytes.toByteArray(), StandardCharsets.UTF_8);
                 }
-                sb.append((char) (b & 0xFF));
+                bytes.write(b & 0xFF);
             }
             dnum = disk.nextBlock(dnum);
         }
-        return "文件内容: " + sb;
+        return "文件内容: " + new String(bytes.toByteArray(), StandardCharsets.UTF_8);
     }
 
     /** 改变文件属性：change /a.txt 1 */
@@ -477,7 +491,7 @@ public class FileSystem {
                 + "  rd <绝对路径>                删除空目录，如 rd /doc\n"
                 + "  create <绝对路径文件名> <属性> 建立文件并打开（写方式），如 create /a.tx 4\n"
                 + "  open <绝对路径文件名> <0|1>   打开文件（0 读，1 写），如 open /a.tx 1\n"
-                + "  read <绝对路径文件名> <长度>   读文件，如 read /a.tx 20\n"
+                + "  read <绝对路径文件名> <字节数> 读文件，如 read /a.tx 20\n"
                 + "  write <绝对路径文件名> <内容>  写文件（追加/新建后写入），如 write /a.tx hello\n"
                 + "  close <绝对路径文件名>        关闭文件，如 close /a.tx\n"
                 + "  delete <绝对路径文件名>       删除文件，如 delete /a.tx\n"
@@ -485,7 +499,8 @@ public class FileSystem {
                 + "  change <绝对路径文件名> <属性> 改变文件属性，如 change /a.tx 1\n"
                 + "  format                      重新初始化磁盘\n"
                 + "属性位: 1=只读 2=系统 4=普通文件 8=目录（文件可用 1/2/4 组合，如 3=只读系统文件，4=普通文件）\n"
-                + "注意: 文件名为 名字.类型（名字≤3 字符，类型≤2 字符），目录名≤3 字符；只支持绝对路径（以 / 开头）。";
+                + "注意: 文件名为 名字.类型（名字≤3 字符，类型≤2 字符），目录名≤3 字符；只支持绝对路径（以 / 开头）。\n"
+                + "正文采用 UTF-8 编码，长度按字节计算；read 截断的多字节字符会在后续读取完整后显示。";
     }
 
     // ------------------------------------------------------------------

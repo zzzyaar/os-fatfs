@@ -30,11 +30,25 @@ type /doc/a.tx
 dir /doc
 ```
 
-最后可以看到文件内容 `hello` 和目录中的 `a.tx`。输入 `help` 查看全部命令。文件主名最多 3 字节、类型名最多 2 字节，试用时先使用 ASCII 名称及正文。
+最后可以看到文件内容 `hello` 和目录中的 `a.tx`。输入 `help` 查看全部命令。文件主名最多 3 字节、类型名最多 2 字节，名称使用 ASCII；正文支持 UTF-8 中文，例如 `write /doc/a.tx 中文测试`。
+
+读写长度按 UTF-8 字节数计算，例如“中文”占 6 字节。`read` 如果在一个多字节字符中间停止，未完整的字节会暂存，后续读取完整后再显示。关闭并重新以读方式打开文件，会从头开始读取。
+
+## 中文读写检查
+
+在项目目录执行：
+
+```powershell
+javac -encoding UTF-8 -d out src\fatfs\*.java test\fatfs\Utf8FileSystemTest.java
+java '-Dfile.encoding=UTF-8' -cp out fatfs.Utf8FileSystemTest
+```
+
+测试在独立临时目录中运行，检查中文、表情符号、跨块及分次读取、追加、字节长度和空文件。
 
 ## 文件说明
 
-- `src/fatfs/`：队友提供的原始 Java 源码。
+- `src/fatfs/`：文件系统实现及 Java Swing 图形界面。
+- `test/fatfs/`：独立运行的中文读写回归检查。
 - `build.bat`、`run.bat`：队友提供的原始脚本。
 - `doc/`：与队友共享的文档。
 - `docbymyself/`：本地私用文档，已加入 Git 忽略规则。
