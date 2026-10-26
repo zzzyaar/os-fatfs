@@ -11,8 +11,9 @@ public class OpenFileTable {
     private int count = 0;
 
     public int find(String name) {
+        String normalizedName = FileNames.normalizeExtension(name);
         for (int i = 0; i < count; i++) {
-            if (items[i].name.equals(name)) {
+            if (FileNames.normalizeExtension(items[i].name).equals(normalizedName)) {
                 return i;
             }
         }

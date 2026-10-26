@@ -168,7 +168,7 @@ public class FileSystem {
         if (parts.length != 2) {
             throw new IllegalArgumentException("用法: create <绝对路径文件名> <属性>");
         }
-        String path = parts[0];
+        String path = FileNames.normalizeExtension(parts[0]);
         int attr = parseFileAttribute(parts[1], "属性");
         if ((attr & DirEntry.ATTR_READONLY) != 0) {
             throw new IllegalArgumentException("只读文件不能建立");
@@ -213,7 +213,7 @@ public class FileSystem {
         if (parts.length != 2) {
             throw new IllegalArgumentException("用法: open <绝对路径文件名> <0读|1写>");
         }
-        String path = parts[0];
+        String path = FileNames.normalizeExtension(parts[0]);
         int flag = parseByte(parts[1], "操作类型");
         if (flag != OFTLE.READ && flag != OFTLE.WRITE) {
             throw new IllegalArgumentException("操作类型只能为 0（读）或 1（写）");
@@ -503,7 +503,8 @@ public class FileSystem {
                 + "  format                      重新初始化磁盘\n"
                 + "属性位: 1=只读 2=系统 4=普通文件 8=目录（文件可用 1/2/4 组合，如 3=只读系统文件，4=普通文件）\n"
                 + "注意: 文件名为 名字.类型（名字≤3 字符，类型≤2 字符），目录名≤3 字符；只支持绝对路径（以 / 开头）。\n"
-                + "正文采用 UTF-8 编码，长度按字节计算；read 截断的多字节字符会在后续读取完整后显示。";
+                + "正文采用 UTF-8 编码，长度按字节计算；read 截断的多字节字符会在后续读取完整后显示。\n"
+                + "命名规则: 文件主名和目录名区分大小写，文件后缀统一按小写处理。";
     }
 
     // ------------------------------------------------------------------
@@ -690,10 +691,11 @@ public class FileSystem {
 
     /** 在目录盘块中按完整名查找登记项，返回下标，未找到返回 -1 */
     private int findInBlock(int block, String name) throws IOException {
+        String normalizedName = FileNames.normalizeExtension(name);
         byte[] data = disk.readBlock(block);
         for (int i = 0; i < Disk.BLOCK_SIZE; i += DirEntry.SIZE) {
             DirEntry e = new DirEntry(data, i);
-            if (!e.isEmpty() && e.fullName().equalsIgnoreCase(name)) {
+            if (!e.isEmpty() && e.fullName().equals(normalizedName)) {
                 return i / DirEntry.SIZE;
             }
         }
