@@ -1,0 +1,17 @@
+# Java build output
+/out/
+*.class
+hs_err_pid*
+
+# Simulated disks are runtime state
+/disk.dat
+
+# Local IDE and OS settings
+/.idea/
+/.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 私用文档
+/docbymyself/
