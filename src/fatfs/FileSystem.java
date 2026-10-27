@@ -175,6 +175,9 @@ public class FileSystem {
         }
 
         String[] segs = splitPath(path);
+        if (segs.length == 0) {
+            throw new IllegalArgumentException("根目录不能作为文件，请指定文件名");
+        }
         String last = segs[segs.length - 1];
         String[] nameExt = parseFileName(last, true);
 
