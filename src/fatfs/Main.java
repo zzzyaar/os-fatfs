@@ -594,7 +594,7 @@ public class Main {
 
     private void addChildren(DefaultMutableTreeNode parent, String path,
                              Set<Integer> visited, int depth) {
-        if (depth > 6) {
+        if (depth > Disk.BLOCK_COUNT) {
             return;
         }
         List<FileSystem.EntryInfo> items = safeList(path);
@@ -648,7 +648,7 @@ public class Main {
 
     private void collectDirBlocks(String path, Set<Integer> blocks,
                                   Set<Integer> visited, int depth) {
-        if (depth > 6) {
+        if (depth > Disk.BLOCK_COUNT) {
             return;
         }
         for (FileSystem.EntryInfo it : safeList(path)) {
