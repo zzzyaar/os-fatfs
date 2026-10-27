@@ -303,14 +303,31 @@ public class FileSystem {
         return "读出内容: " + decoded + (eofHit ? "\n（已遇到文件结束符 #）" : "");
     }
 
-    /** 写文件：write /a.txt hello（写入缓冲中的内容） */
+    /** 写文件：write /a.tx 2 abc（写入正文缓冲的前 2 字节） */
     private String write(String arg) throws IOException {
-        String[] parts = arg.split("\\s+", 2);
+        String[] parts = arg.split("\\s+", 3);
         if (parts.length < 2) {
-            throw new IllegalArgumentException("用法: write <绝对路径文件名> <内容>");
+            throw new IllegalArgumentException("用法: write <绝对路径文件名> <写入字节数> <内容>");
         }
         String path = parts[0];
-        String content = parts[1];
+        int len = parseInt(parts[1], "写入字节数");
+        String content = parts.length == 3 ? parts[2] : "";
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        if (len >= 0 && len < bytes.length && (bytes[len] & 0xC0) == 0x80) {
+            throw new IllegalArgumentException("写入字节数不能截断 UTF-8 字符，请选择完整字符的字节边界");
+        }
+        int written = write_file(path, bytes, len);
+        return "已写入 " + written + " 字节到 " + path;
+    }
+
+    /** 将缓冲的前 len 字节写入文件，成功时返回写入字节数；不解释文本编码。 */
+    public int write_file(String path, byte[] buffer, int len) throws IOException {
+        if (buffer == null) {
+            throw new IllegalArgumentException("写入缓冲不能为 null");
+        }
+        if (len < 0 || len > buffer.length) {
+            throw new IllegalArgumentException("写入字节数必须在 0~" + buffer.length + " 之间（缓冲的字节数）");
+        }
 
         Lookup l = lookup(path);
         if (!l.ok) {
@@ -328,8 +345,7 @@ public class FileSystem {
             throw new IllegalArgumentException("文件不是写方式打开，不能写");
         }
 
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        for (int i = 0; i < bytes.length; i++) {
+        for (int i = 0; i < len; i++) {
             // 当前块写满时，仅当还有下一字节要写才推进/申请下一块
             if (oftle.writeBnum >= Disk.BLOCK_SIZE) {
                 int next = disk.nextBlock(oftle.writeDnum);
@@ -347,7 +363,7 @@ public class FileSystem {
                 oftle.writeBnum = 0;
             }
             byte[] data = disk.readBlock(oftle.writeDnum);
-            data[oftle.writeBnum] = bytes[i];
+            data[oftle.writeBnum] = buffer[i];
             disk.writeBlock(oftle.writeDnum, data);
 
             oftle.writeBnum++;
@@ -361,7 +377,7 @@ public class FileSystem {
         l.entry.setLengthBlocks(blocks);
         writeEntry(l);
 
-        return "已写入 " + bytes.length + " 字节到 " + path;
+        return len;
     }
 
     /** 关闭文件：close /a.txt */
@@ -495,7 +511,7 @@ public class FileSystem {
                 + "  create <绝对路径文件名> <属性> 建立文件并打开（写方式），如 create /a.tx 4\n"
                 + "  open <绝对路径文件名> <0|1>   打开文件（0 读，1 写），如 open /a.tx 1\n"
                 + "  read <绝对路径文件名> <字节数> 读文件，如 read /a.tx 20\n"
-                + "  write <绝对路径文件名> <内容>  写文件（追加/新建后写入），如 write /a.tx hello\n"
+                + "  write <绝对路径文件名> <字节数> <内容>  写入内容的前 N 字节，如 write /a.tx 2 abc\n"
                 + "  close <绝对路径文件名>        关闭文件，如 close /a.tx\n"
                 + "  delete <绝对路径文件名>       删除文件，如 delete /a.tx\n"
                 + "  type <绝对路径文件名>         显示文件内容，如 type /a.tx\n"
@@ -504,6 +520,7 @@ public class FileSystem {
                 + "属性位: 1=只读 2=系统 4=普通文件 8=目录（文件可用 1/2/4 组合，如 3=只读系统文件，4=普通文件）\n"
                 + "注意: 文件名为 名字.类型（名字≤3 字符，类型≤2 字符），目录名≤3 字符；只支持绝对路径（以 / 开头）。\n"
                 + "正文采用 UTF-8 编码，长度按字节计算；read 截断的多字节字符会在后续读取完整后显示。\n"
+                + "write（别名 write_file）必须指定字节数，范围为 0 到正文字节数，不能截断 UTF-8 字符；写 0 字节可省略内容。\n"
                 + "命名规则: 文件主名和目录名区分大小写，文件后缀统一按小写处理。";
     }
 

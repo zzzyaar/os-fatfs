@@ -61,7 +61,7 @@ public class Utf8FileSystemTest {
         check("reopening resets pending bytes and pointer", read("/a.tx", 3).equals("中"));
         command("close /a.tx");
 
-        command("write /a.tx 文🙂");
+        command("write /a.tx 7 文🙂");
         check("append byte length", fs.openFiles().get(0).length == 10);
         command("close /a.tx");
         check("append keeps original text", command("type /a.tx").equals("文件内容: 中文🙂"));
@@ -79,7 +79,7 @@ public class Utf8FileSystemTest {
         command("format");
         command("create /a.tx 4");
         int byteLength = text.getBytes(StandardCharsets.UTF_8).length;
-        check("write reports UTF-8 byte length", command("write /a.tx " + text)
+        check("write reports UTF-8 byte length", command("write /a.tx " + byteLength + " " + text)
                 .equals("已写入 " + byteLength + " 字节到 /a.tx"));
         check("open table counts bytes", fs.openFiles().get(0).length == byteLength);
         command("close /a.tx");
@@ -108,7 +108,7 @@ public class Utf8FileSystemTest {
 
     private static void create(String path, String text) {
         command("create " + path + " 4");
-        command("write " + path + " " + text);
+        command("write " + path + " " + text.getBytes(StandardCharsets.UTF_8).length + " " + text);
         command("close " + path);
     }
 

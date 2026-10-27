@@ -41,6 +41,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -406,7 +407,7 @@ public class Main {
             case "create": return "create <路径文件名> <属性>　建立文件并打开（写方式）";
             case "open":   return "open <路径文件名> <0读|1写>　打开文件";
             case "read":   return "read <路径文件名> <长度>　读文件";
-            case "write":  return "write <路径文件名> <内容>　写文件（末尾追加）";
+            case "write":  return "write <路径文件名> <字节数> <内容>　追加内容的前 N 字节";
             case "close":  return "close <路径文件名>　关闭文件";
             case "delete": return "delete <路径文件名>　删除文件";
             case "type":   return "type <路径文件名>　显示文件内容（文件未打开时）";
@@ -499,7 +500,7 @@ public class Main {
                 prompt("读文件", "read " + filePath() + " 20");
                 break;
             case "write":
-                prompt("写文件（末尾追加）", "write " + filePath() + " hello");
+                prompt("写文件（末尾追加）", "write " + filePath() + " 5 hello");
                 break;
             case "close":
                 prompt("关闭文件", "close " + filePath());
@@ -767,8 +768,21 @@ public class Main {
             }));
             menu.add(item("写文件…", () -> {
                 String text = ask("写入内容（末尾追加）：", "写文件");
-                if (text != null && !text.isEmpty()) {
-                    exec("write " + d.path + " " + text);
+                if (text != null) {
+                    text = text.trim(); // 与命令输入的正文空白处理保持一致
+                    int bytes = text.getBytes(StandardCharsets.UTF_8).length;
+                    Object length = JOptionPane.showInputDialog(frame,
+                            "写入字节数（正文共 " + bytes + " 字节，不能截断 UTF-8 字符）：", "写文件",
+                            JOptionPane.PLAIN_MESSAGE, null, null, Integer.toString(bytes));
+                    if (length != null && !length.toString().trim().isEmpty()) {
+                        try {
+                            int count = Integer.parseInt(length.toString().trim());
+                            exec("write " + d.path + " " + count + " " + text);
+                        } catch (NumberFormatException ex) {
+                            JOptionPane.showMessageDialog(frame, "写入字节数必须是整数", "写文件",
+                                    JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
                 }
             }));
             menu.add(item("关闭文件", () -> exec("close " + d.path)));
