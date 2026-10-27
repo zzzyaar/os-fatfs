@@ -336,32 +336,24 @@ public class FileSystem {
         if (l.entry.isDirectory()) {
             throw new IllegalArgumentException(path + " 是目录，不能写");
         }
-        if (!openFileTable.isOpen(path)) {
-            open(path + " 1");
-        }
-
         OFTLE oftle = openFileTable.get(path);
-        if (oftle.flag != OFTLE.WRITE) {
+        if (oftle != null && oftle.flag != OFTLE.WRITE) {
             throw new IllegalArgumentException("文件不是写方式打开，不能写");
         }
 
+        int length = oftle == null ? findEof(l.entry.startBlock()).bytes : oftle.length;
+        long requiredBlocks = ((long) length + len + Disk.BLOCK_SIZE) / Disk.BLOCK_SIZE;
+        int existingBlocks = disk.countChainBlocks(l.entry.startBlock());
+        if (requiredBlocks > existingBlocks + stats().free) {
+            throw new IllegalArgumentException("磁盘空间不足（本次未写入，需为结束符 # 保留空间）");
+        }
+        if (oftle == null) {
+            open(path + " 1");
+            oftle = openFileTable.get(path);
+        }
+
         for (int i = 0; i < len; i++) {
-            // 当前块写满时，仅当还有下一字节要写才推进/申请下一块
-            if (oftle.writeBnum >= Disk.BLOCK_SIZE) {
-                int next = disk.nextBlock(oftle.writeDnum);
-                if (next == -1) {
-                    next = disk.allocBlock();
-                    if (next < 0) {
-                        throw new IllegalArgumentException("磁盘空间不足");
-                    }
-                    disk.setFat(oftle.writeDnum, next);
-                    byte[] blank = new byte[Disk.BLOCK_SIZE];
-                    Arrays.fill(blank, (byte) ' ');
-                    disk.writeBlock(next, blank);
-                }
-                oftle.writeDnum = next;
-                oftle.writeBnum = 0;
-            }
+            ensureWritePosition(oftle);
             if (oftle.writeBuffer == null) {
                 oftle.writeBuffer = disk.readBlock(oftle.writeDnum);
             }
@@ -375,6 +367,9 @@ public class FileSystem {
             oftle.length++;
         }
 
+        // 结束符所需盘块提前加入文件链，避免被其他文件或目录占用。
+        ensureWritePosition(oftle);
+
         int blocks = disk.countChainBlocks(oftle.number);
         if (blocks > 255) {
             blocks = 255;
@@ -383,6 +378,26 @@ public class FileSystem {
         writeEntry(l);
 
         return len;
+    }
+
+    /** 写指针到达块尾时推进到下一块，必要时分配并初始化。 */
+    private void ensureWritePosition(OFTLE oftle) throws IOException {
+        if (oftle.writeBnum < Disk.BLOCK_SIZE) {
+            return;
+        }
+        int next = disk.nextBlock(oftle.writeDnum);
+        if (next == -1) {
+            next = disk.allocBlock();
+            if (next < 0) {
+                throw new IllegalArgumentException("磁盘空间不足");
+            }
+            disk.setFat(oftle.writeDnum, next);
+            byte[] blank = new byte[Disk.BLOCK_SIZE];
+            Arrays.fill(blank, (byte) ' ');
+            disk.writeBlock(next, blank);
+        }
+        oftle.writeDnum = next;
+        oftle.writeBnum = 0;
     }
 
     /** 关闭文件：close /a.txt */
@@ -397,22 +412,7 @@ public class FileSystem {
 
         OFTLE oftle = openFileTable.get(path);
         if (oftle.flag == OFTLE.WRITE) {
-            // 若写指针恰好在盘块末尾，先申请/推进到下一块
-            if (oftle.writeBnum >= Disk.BLOCK_SIZE) {
-                int next = disk.nextBlock(oftle.writeDnum);
-                if (next == -1) {
-                    next = disk.allocBlock();
-                    if (next < 0) {
-                        throw new IllegalArgumentException("磁盘空间不足");
-                    }
-                    disk.setFat(oftle.writeDnum, next);
-                    byte[] blank = new byte[Disk.BLOCK_SIZE];
-                    Arrays.fill(blank, (byte) ' ');
-                    disk.writeBlock(next, blank);
-                }
-                oftle.writeDnum = next;
-                oftle.writeBnum = 0;
-            }
+            ensureWritePosition(oftle);
             byte[] data = oftle.writeBuffer != null ? oftle.writeBuffer : disk.readBlock(oftle.writeDnum);
             if (oftle.writeBuffer != null || data[oftle.writeBnum] != EOF_CHAR) {
                 data[oftle.writeBnum] = EOF_CHAR; // 追加文件结束符

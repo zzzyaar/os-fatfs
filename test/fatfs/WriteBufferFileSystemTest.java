@@ -39,7 +39,7 @@ public class WriteBufferFileSystemTest {
         check("多次写入累积到 63 字节仍不落盘", Arrays.equals(raw(first), empty));
         put("/a.tx", "x");
         check("第 64 字节使整块落盘", Arrays.equals(raw(first), filled('x')));
-        check("满块但没有多分配空块", fs.stats().used == 1);
+        check("正文满块后已预留结束符盘块", fs.stats().used == 2);
         command("close /a.tx");
         check("满块关闭另存结束符", raw(fs.fatSnapshot()[first])[0] == '#');
         contents("a.tx", "x".repeat(64));
