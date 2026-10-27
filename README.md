@@ -36,6 +36,8 @@ dir /doc
 
 代码中，`write(String arg)` 负责解析命令、将正文编码为 UTF-8 并检查字符边界，再调用 `write_file(String path, byte[] buffer, int len)` 执行实际写入。后者按“文件名、缓冲、写长度”接收参数，仅按字节处理，成功时返回写入字节数。此处的参数缓冲是待写数据，与磁盘内部的盘块缓冲用途不同。
 
+写文件时，每个打开的写文件各自保留一个未满的 64 字节盘块；填满后整块写盘，关闭时补上 `#` 并写回剩余数据。多次写入可连续填充同一块，多个文件交替写入时互不混用待写数据。写入成功表示数据已被接收，关闭文件前请勿直接退出程序。
+
 读写长度按 UTF-8 字节数计算，例如“中文”占 6 字节。`read` 如果在一个多字节字符中间停止，未完整的字节会暂存，后续读取完整后再显示。关闭并重新以读方式打开文件，会从头开始读取。
 
 文件主名和目录名区分大小写，后缀统一按小写存储和识别。例如 `a.tx` 与 `A.tx` 是不同文件，`a.TX` 与 `a.tx` 是同一文件；`/Doc` 与 `/doc` 是不同目录。后缀仍最多 2 字节，不能使用 `.txt`。
@@ -48,15 +50,17 @@ dir /doc
 javac -encoding UTF-8 -d out src\fatfs\*.java test\fatfs\*.java
 java '-Dfile.encoding=UTF-8' -cp out fatfs.Utf8FileSystemTest
 java '-Dfile.encoding=UTF-8' -cp out fatfs.WriteLengthFileSystemTest
+java '-Dfile.encoding=UTF-8' -cp out fatfs.WriteBufferFileSystemTest
 ```
 
 测试在独立临时目录中运行，检查中文、表情符号、跨块及分次读取、追加、字节长度和空文件。
 写长度检查另覆盖指定前缀、带空格及数字的正文、零字节写入、非法长度拒绝后磁盘和打开表不变，以及读模式和只读保护。
+写缓冲检查直接读取模拟磁盘，验证不足一块时暂存、满块刷新、关闭刷新、追加、跨块、多个文件交替写入和格式化清除待写状态。
 
 ## 文件说明
 
 - `src/fatfs/`：文件系统实现及 Java Swing 图形界面。
-- `test/fatfs/`：独立运行的中文读写和写长度回归检查。
+- `test/fatfs/`：独立运行的中文读写、写长度和写缓冲回归检查。
 - `build.bat`、`run.bat`：队友提供的原始脚本。
 - `doc/`：与队友共享的文档。
 - `docbymyself/`：本地私用文档，已加入 Git 忽略规则。

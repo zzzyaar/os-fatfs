@@ -26,6 +26,7 @@ public class OFTLE {
     byte[] readPendingBytes = new byte[0]; // 跨 read 命令保留尚未读完整的 UTF-8 字符字节
     public int writeDnum;      // 写指针：盘块号
     public int writeBnum;      // 写指针：块内字节号
+    byte[] writeBuffer;        // 当前未写满的盘块，跨写命令保留；满块或关闭时刷新
 
     public OFTLE(String name, int attribute, int number, int length, int flag,
                  int readDnum, int readBnum, int writeDnum, int writeBnum) {

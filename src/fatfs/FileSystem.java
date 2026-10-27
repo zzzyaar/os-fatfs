@@ -362,9 +362,14 @@ public class FileSystem {
                 oftle.writeDnum = next;
                 oftle.writeBnum = 0;
             }
-            byte[] data = disk.readBlock(oftle.writeDnum);
-            data[oftle.writeBnum] = buffer[i];
-            disk.writeBlock(oftle.writeDnum, data);
+            if (oftle.writeBuffer == null) {
+                oftle.writeBuffer = disk.readBlock(oftle.writeDnum);
+            }
+            oftle.writeBuffer[oftle.writeBnum] = buffer[i];
+            if (oftle.writeBnum == Disk.BLOCK_SIZE - 1) {
+                disk.writeBlock(oftle.writeDnum, oftle.writeBuffer);
+                oftle.writeBuffer = null;
+            }
 
             oftle.writeBnum++;
             oftle.length++;
@@ -408,10 +413,11 @@ public class FileSystem {
                 oftle.writeDnum = next;
                 oftle.writeBnum = 0;
             }
-            byte[] data = disk.readBlock(oftle.writeDnum);
-            if (data[oftle.writeBnum] != EOF_CHAR) {
+            byte[] data = oftle.writeBuffer != null ? oftle.writeBuffer : disk.readBlock(oftle.writeDnum);
+            if (oftle.writeBuffer != null || data[oftle.writeBnum] != EOF_CHAR) {
                 data[oftle.writeBnum] = EOF_CHAR; // 追加文件结束符
                 disk.writeBlock(oftle.writeDnum, data);
+                oftle.writeBuffer = null;
             }
 
             Lookup l = lookup(path);
